@@ -14,12 +14,10 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 
 @KtorExperimentalAPI
-internal class SøknadConsumer(
-    private val env: ApplicationConfig
-) {
+internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClient: DokarkivClient) {
     private val LOG = LoggerFactory.getLogger(SøknadConsumer::class.java)
-    val kafkaConfig = KafkaConfigBuilder(env)
-    val kafkaConsumer = KafkaConsumer(
+    private val kafkaConfig = KafkaConfigBuilder(env)
+    private val kafkaConsumer = KafkaConsumer(
         kafkaConfig.consumerConfig(),
         StringDeserializer(),
         StringDeserializer()
@@ -27,7 +25,7 @@ internal class SøknadConsumer(
         it.subscribe(listOf(KafkaConfigBuilder.Topics.SOKNAD_TOPIC))
     }
 
-    val kafkaProducer = KafkaProducer<String, String>(
+    private val kafkaProducer = KafkaProducer<String, String>(
         kafkaConfig.producerConfig(),
         StringSerializer(),
         StringSerializer()
@@ -39,6 +37,7 @@ internal class SøknadConsumer(
                 val records: ConsumerRecords<String, String> = kafkaConsumer.poll(Duration.of(100, ChronoUnit.MILLIS))
                 records.map {
                     LOG.info("Polled event: topic:${it.topic()}, key:${it.key()}, value:${it.value()}")
+                    dokarkivClient.opprettJournalpost(it.value())
                 }
             }
         }

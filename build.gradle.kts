@@ -21,6 +21,7 @@ val fuelVersion = "2.2.1"
 val orgJsonVersion = "20180813"
 val micrometerRegistryPrometheusVersion = "1.3.2"
 
+
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("ch.qos.logback:logback-classic:1.2.3")
@@ -42,6 +43,10 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-params:$junitJupiterVersion")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
     testImplementation("no.nav:kafka-embedded-env:2.2.3")
+
+    testImplementation("com.github.tomakehurst:wiremock:2.23.2") {
+        exclude(group = "junit")
+    }
 }
 
 tasks.named<Jar>("jar") {
