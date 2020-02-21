@@ -1,0 +1,1 @@
+Mikrotjeneste for å journalføre dokumenter for Supplerende stønad for uføre
