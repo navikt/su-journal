@@ -1,4 +1,4 @@
-package no.su.journal
+package no.nav.su.journal
 
 import io.ktor.application.Application
 import io.ktor.application.call
