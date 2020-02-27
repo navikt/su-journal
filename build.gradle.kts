@@ -15,7 +15,7 @@ repositories {
     maven("https://packages.confluent.io/maven/")
 }
 
-val ktorVersion = "1.2.6"
+val ktorVersion = "1.3.0"
 val junitJupiterVersion = "5.6.0-M1"
 val fuelVersion = "2.2.1"
 val orgJsonVersion = "20180813"

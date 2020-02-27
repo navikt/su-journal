@@ -6,6 +6,7 @@ import io.ktor.util.KtorExperimentalAPI
 import io.prometheus.client.CollectorRegistry
 import no.nav.su.person.sts.StsConsumer
 
+@KtorExperimentalAPI
 internal fun Application.sujournal() {
     val collectorRegistry = CollectorRegistry.defaultRegistry
     installMetrics(collectorRegistry)
