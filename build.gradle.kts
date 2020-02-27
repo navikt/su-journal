@@ -9,10 +9,19 @@ java {
     targetCompatibility = JavaVersion.VERSION_12
 }
 
+val githubUser: String? by project
+val githubPassword: String? by project
 repositories {
     jcenter()
     maven("https://dl.bintray.com/kotlin/ktor")
     maven("https://packages.confluent.io/maven/")
+    maven {
+        url = uri("https://maven.pkg.github.com/navikt/su-meldinger")
+        credentials {
+            username = githubUser ?: System.getenv("GITHUB_USERNAME")
+            password = githubPassword ?: System.getenv("GITHUB_PASSWORD")
+        }
+    }
 }
 
 val ktorVersion = "1.3.0"
@@ -34,6 +43,7 @@ dependencies {
     implementation("io.ktor:ktor-metrics-micrometer:$ktorVersion")
     implementation("io.micrometer:micrometer-registry-prometheus:$micrometerRegistryPrometheusVersion")
     implementation("org.apache.kafka:kafka-streams:2.3.0")
+    implementation("no.nav:su-meldinger:1cbb6c959da60b16f51bcab6088b841374690ca5")
 
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion") {
         exclude(group = "junit")

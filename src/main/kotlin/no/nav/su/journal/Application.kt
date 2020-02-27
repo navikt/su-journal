@@ -14,6 +14,7 @@ internal fun Application.sujournal() {
     SøknadConsumer(environment.config, velgArkiv()).lesHendelser()
 }
 
+@KtorExperimentalAPI
 private fun Application.velgArkiv(): DokArkiv = when {
     fromEnvironment("dokarkiv.skarp") == "true" -> DokarkivClient(
         stsConsumer = StsConsumer(

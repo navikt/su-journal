@@ -2,6 +2,7 @@ package no.nav.su.journal
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock
+import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
 import com.github.tomakehurst.wiremock.matching.AnythingPattern
 import io.ktor.http.HttpHeaders
@@ -13,6 +14,7 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.serialization.StringSerializer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 @KtorExperimentalAPI
@@ -65,8 +67,11 @@ class JournalComponentTest {
         fun stop() {
             wireMockServer.stop()
         }
+    }
 
-
+    @BeforeEach
+    fun resetWiremock() {
+        wireMockServer.resetRequests()
     }
 
     @Test
@@ -85,7 +90,7 @@ class JournalComponentTest {
                 }
             """.trimIndent()))
             Thread.sleep(2000)
-            // TODO
+            wireMockServer.verify(1, WireMock.postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
         }
     }
 
@@ -106,9 +111,8 @@ class JournalComponentTest {
                     }
                 }
             """.trimIndent()))
-            // TODO
+            Thread.sleep(2000)
+            wireMockServer.verify(0, WireMock.postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
         }
     }
-
-
 }
