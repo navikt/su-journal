@@ -16,6 +16,7 @@ fun Application.testEnv(wireMockServer: WireMockServer) {
         put("sts.username", STS_USERNAME)
         put("sts.password", STS_PASSWORD)
         put("dokarkiv.url", baseUrl)
+        put("dokarkiv.skarp", "true")
         put("kafka.username", "kafkaUser")
         put("kafka.password", "kafkaPassword")
         put("kafka.bootstrap", EmbeddedKafka.kafkaInstance.brokersURL)

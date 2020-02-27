@@ -14,7 +14,7 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 
 @KtorExperimentalAPI
-internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClient: DokarkivClient) {
+internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClient: DokArkiv) {
     private val LOG = LoggerFactory.getLogger(SøknadConsumer::class.java)
     private val kafkaConfig = KafkaConfigBuilder(env)
     private val kafkaConsumer = KafkaConsumer(

@@ -11,16 +11,19 @@ internal fun Application.sujournal() {
     val collectorRegistry = CollectorRegistry.defaultRegistry
     installMetrics(collectorRegistry)
     naisRoutes(collectorRegistry)
-    val dokarkivClient =
-        DokarkivClient(
-            stsConsumer = StsConsumer(
-                baseUrl = fromEnvironment("sts.url"),
-                username = fromEnvironment("sts.username"),
-                password = fromEnvironment("sts.password")
-            ),
-            baseUrl = fromEnvironment("dokarkiv.url")
-        )
-    SøknadConsumer(environment.config, dokarkivClient).lesHendelser()
+    SøknadConsumer(environment.config, velgArkiv()).lesHendelser()
+}
+
+private fun Application.velgArkiv(): DokArkiv = when {
+    fromEnvironment("dokarkiv.skarp") == "true" -> DokarkivClient(
+        stsConsumer = StsConsumer(
+            baseUrl = fromEnvironment("sts.url"),
+            username = fromEnvironment("sts.username"),
+            password = fromEnvironment("sts.password")
+        ),
+        baseUrl = fromEnvironment("dokarkiv.url")
+    )
+    else -> DummyArkiv()
 }
 
 fun main(args: Array<String>) = io.ktor.server.netty.EngineMain.main(args)

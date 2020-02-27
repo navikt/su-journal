@@ -6,11 +6,19 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import no.nav.su.person.sts.StsConsumer
 
+internal sealed abstract class DokArkiv {
+    abstract fun opprettJournalpost(hendelse: String): OpprettJournalpostResultat
+}
+
+internal class DummyArkiv(): DokArkiv() {
+    override fun opprettJournalpost(hendelse: String): OpprettJournalpostResultat = JournalpostSvar("dummy journalpost")
+}
+
 internal class DokarkivClient(
     private val baseUrl: String,
     private val stsConsumer: StsConsumer
-) {
-    internal fun opprettJournalpost(søknadHendelse: String): OpprettJournalpostResultat {
+): DokArkiv() {
+    override fun opprettJournalpost(søknadHendelse: String): OpprettJournalpostResultat {
         val (_, response, result) = "$baseUrl/rest/journalpostapi/v1/journalpost".httpPost()
             .authentication().bearer(stsConsumer.token())
             .header(HttpHeaders.Accept, ContentType.Application.Json)
