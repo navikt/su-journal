@@ -9,10 +9,11 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.nav.su.journal.Metrics.messageProcessed
 import no.nav.su.journal.Metrics.messageRead
-import no.nav.su.meldinger.kafka.Topics.SOKNAD_TOPIC
+import no.nav.su.meldinger.kafka.Topics.SØKNAD_TOPIC
 import no.nav.su.meldinger.kafka.headersAsString
-import no.nav.su.meldinger.kafka.soknad.NySoknadMedSkyggesak
-import no.nav.su.meldinger.kafka.soknad.SoknadMelding
+import no.nav.su.meldinger.kafka.soknad.NySøknadMedJournalId
+import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
+import no.nav.su.meldinger.kafka.soknad.SøknadMelding
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -34,7 +35,7 @@ internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClien
         StringDeserializer(),
         StringDeserializer()
     ).also {
-        it.subscribe(listOf(SOKNAD_TOPIC))
+        it.subscribe(listOf(SØKNAD_TOPIC))
     }
 
     private val kafkaProducer = KafkaProducer<String, String>(
@@ -51,13 +52,13 @@ internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClien
                         it.logMessage()
                         messageRead()
                     }
-                    .filter { SoknadMelding.fromConsumerRecord(it) is NySoknadMedSkyggesak }
-                    .map { Pair(SoknadMelding.fromConsumerRecord(it) as NySoknadMedSkyggesak, it.headersAsString()) }
+                        .filter { SøknadMelding.fromConsumerRecord(it) is NySøknadMedSkyggesak }
+                    .map { Pair(SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak, it.headersAsString()) }
                     .forEach {
                         val message = it.first
                         val correlationId = it.second.getOrDefault(XCorrelationId, UUID.randomUUID().toString())
                         val journalPostId = dokarkivClient.opprettJournalpost(it.first.value(),correlationId)
-                        kafkaProducer.send(message.asJournalPost(journalPostId).toProducerRecord(SOKNAD_TOPIC, it.second))
+                        kafkaProducer.send(message.asJournalPost(journalPostId).toProducerRecord(SØKNAD_TOPIC, it.second))
                         messageProcessed()
                     }
             }
@@ -65,7 +66,7 @@ internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClien
     }
 }
 
-private fun NySoknadMedSkyggesak.asJournalPost(journalPostId: String) = NySoknadMedSkyggesak(sakId = sakId, aktoerId = aktoerId, soknadId = soknadId, soknad = soknad, fnr = fnr, gsakId = journalPostId)
+private fun NySøknadMedSkyggesak.asJournalPost(journalPostId: String) = NySøknadMedJournalId(sakId = sakId, aktørId = aktørId, søknadId = søknadId, søknad = søknad, fnr = fnr, gsakId = gsakId, journalId = journalPostId)
 
 private fun ConsumerRecord<String, String>.logMessage() {
     LOG.info("Polled message: topic:${this.topic()}, key:${this.key()}, value:${this.value()}: $XCorrelationId:${this.headersAsString()[XCorrelationId]}")
