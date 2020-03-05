@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>[%d %level %logger %mdc] - %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+    </root>
+    <logger name="org.apache.zookeeper" level="ERROR">
+        <appender-ref ref="STDOUT" />
+    </logger>
+    <logger name="kafka" level="ERROR">
+        <appender-ref ref="STDOUT" />
+    </logger>
+    <logger name="org.apache.kafka" level="ERROR">
+        <appender-ref ref="STDOUT" />
+    </logger>
+    <logger name="com.zaxxer.hikari" level="ERROR">
+        <appender-ref ref="STDOUT" />
+    </logger>
+    <logger name="org.flywaydb" level="ERROR">
+        <appender-ref ref="STDOUT" />
+    </logger>
+</configuration>

@@ -51,8 +51,4 @@ internal class KafkaConfigBuilder(
                 LOG.error("Failed to set '${SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG}' location", ex)
             }
     }
-
-    object Topics {
-        const val SOKNAD_TOPIC = "privat-su-soknad"
-    }
 }

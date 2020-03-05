@@ -5,24 +5,26 @@ import com.github.kittinunf.fuel.httpPost
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import no.nav.su.person.sts.StsConsumer
+import org.json.JSONObject
+import java.lang.RuntimeException
 
 internal sealed class DokArkiv {
-    abstract fun opprettJournalpost(hendelse: String): OpprettJournalpostResultat
+    abstract fun opprettJournalpost(hendelse: String, corrrelationId: String): String
 }
 
 internal class DummyArkiv(): DokArkiv() {
-    override fun opprettJournalpost(hendelse: String): OpprettJournalpostResultat = JournalpostSvar("dummy journalpost")
+    override fun opprettJournalpost(hendelse: String, corrrelationId: String): String = ""
 }
 
 internal class DokarkivClient(
     private val baseUrl: String,
     private val stsConsumer: StsConsumer
 ): DokArkiv() {
-    override fun opprettJournalpost(hendelse: String): OpprettJournalpostResultat {
-        val (_, response, result) = "$baseUrl/rest/journalpostapi/v1/journalpost".httpPost()
+    override fun opprettJournalpost(hendelse: String, corrrelationId: String): String {
+        val (_, _, result) = "$baseUrl/rest/journalpostapi/v1/journalpost".httpPost()
             .authentication().bearer(stsConsumer.token())
             .header(HttpHeaders.Accept, ContentType.Application.Json)
-            .header("X-Correlation-ID", "") // TODO
+            .header(HttpHeaders.XCorrelationId, corrrelationId)
             .body(
                 """
                     {
@@ -76,16 +78,9 @@ internal class DokarkivClient(
          """.trimIndent()
             ).responseString()
 
-        return if (response.statusCode >= 400) {
-            Feil(response.statusCode, response.responseMessage)
-        } else {
-            JournalpostSvar(result.get())
-        }
+        return result.fold(
+            { JSONObject(it).getString("journalpostId") },
+            { throw RuntimeException("Feil i kallet mot journal") }
+        )
     }
-}
-
-internal sealed class OpprettJournalpostResultat
-internal class Feil(val kode: Int, val beskrivelse: String): OpprettJournalpostResultat()
-internal class JournalpostSvar(var source: String): OpprettJournalpostResultat() {
-   val journalpostId = "" //TODO
 }

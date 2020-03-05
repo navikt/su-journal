@@ -11,7 +11,7 @@ internal fun Application.sujournal() {
     val collectorRegistry = CollectorRegistry.defaultRegistry
     installMetrics(collectorRegistry)
     naisRoutes(collectorRegistry)
-    SøknadConsumer(environment.config, velgArkiv()).lesHendelser()
+    SøknadConsumer(environment.config, velgArkiv()).lesHendelser(this)
 }
 
 @KtorExperimentalAPI

@@ -18,8 +18,8 @@ repositories {
     maven {
         url = uri("https://maven.pkg.github.com/navikt/su-meldinger")
         credentials {
-            username = githubUser ?: System.getenv("GITHUB_USERNAME")
-            password = githubPassword ?: System.getenv("GITHUB_PASSWORD")
+            username = githubUser
+            password = githubPassword
         }
     }
 }
@@ -43,7 +43,7 @@ dependencies {
     implementation("io.ktor:ktor-metrics-micrometer:$ktorVersion")
     implementation("io.micrometer:micrometer-registry-prometheus:$micrometerRegistryPrometheusVersion")
     implementation("org.apache.kafka:kafka-streams:2.3.0")
-    implementation("no.nav:su-meldinger:1cbb6c959da60b16f51bcab6088b841374690ca5")
+    implementation("no.nav:su-meldinger:82b209a55ec92d29e43d2b4b94bc77d7238dbff3")
 
     testImplementation("io.ktor:ktor-server-test-host:$ktorVersion") {
         exclude(group = "junit")
