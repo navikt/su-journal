@@ -6,8 +6,11 @@ import no.nav.su.journal.KafkaConfigBuilder.Topics.SOKNAD_TOPIC
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.clients.producer.KafkaProducer
+import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.kafka.common.serialization.StringSerializer
 import java.util.*
 
 @KtorExperimentalAPI
@@ -25,6 +28,18 @@ class EmbeddedKafka {
                 }
         ).also {
             it.start()
+        }
+
+        val kafkaProducer = KafkaProducer(producerProperties(), StringSerializer(), StringSerializer())
+
+        private fun producerProperties(): MutableMap<String, Any>? {
+            return HashMap<String, Any>().apply {
+                put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, kafkaInstance.brokersURL)
+                put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT")
+                put(SaslConfigs.SASL_MECHANISM, "PLAIN")
+                put(ProducerConfig.ACKS_CONFIG, "all")
+                put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1")
+            }
         }
 
         val kafkaConsumer = KafkaConsumer(

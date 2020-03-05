@@ -8,14 +8,15 @@ import com.github.tomakehurst.wiremock.matching.AnythingPattern
 import io.ktor.http.HttpHeaders
 import io.ktor.server.testing.withTestApplication
 import io.ktor.util.KtorExperimentalAPI
+import no.nav.su.journal.EmbeddedKafka.Companion.kafkaConsumer
+import no.nav.su.journal.EmbeddedKafka.Companion.kafkaProducer
 import no.nav.su.journal.KafkaConfigBuilder.Topics.SOKNAD_TOPIC
-import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.StringSerializer
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.time.Duration.ofSeconds
 
 @KtorExperimentalAPI
 class JournalComponentTest {
@@ -75,20 +76,24 @@ class JournalComponentTest {
     }
 
     @Test
-    fun `når vi får en melding om en søknad som har blitt tilordnet en skyggeskak i Gsak, men ikke journalført, så skal vi journalføre søknaden`(){
+    fun `når vi får en melding om en søknad som har blitt tilordnet en skyggesak i Gsak, men ikke journalført, så skal vi journalføre søknaden`(){
         withTestApplication({
             testEnv(wireMockServer)
             sujournal()
         }) {
-            val kafkaConfig = KafkaConfigBuilder(environment.config)
-            val producer = KafkaProducer(kafkaConfig.producerConfig(), StringSerializer(), StringSerializer())
-            producer.send(ProducerRecord(SOKNAD_TOPIC,"""
+            val recordMetadata = kafkaProducer.send(
+                ProducerRecord(
+                    SOKNAD_TOPIC, """
                 {
                     "soknadId":"",
                     "sakId":"",
                     "soknad":""
                 }
-            """.trimIndent()))
+            """.trimIndent()
+                )
+            ).get()
+            val records = kafkaConsumer.poll(ofSeconds(1L))
+            TODO()
             Thread.sleep(2000)
             wireMockServer.verify(1, WireMock.postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
         }
@@ -100,9 +105,7 @@ class JournalComponentTest {
             testEnv(wireMockServer)
             sujournal()
         }) {
-            val kafkaConfig = KafkaConfigBuilder(environment.config)
-            val producer = KafkaProducer(kafkaConfig.producerConfig(), StringSerializer(), StringSerializer())
-            producer.send(ProducerRecord(SOKNAD_TOPIC,"""
+            kafkaProducer.send(ProducerRecord(SOKNAD_TOPIC,"""
                 {
                     "soknadId":"1",
                     "sakId":"",
