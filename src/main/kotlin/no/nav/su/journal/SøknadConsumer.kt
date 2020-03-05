@@ -58,15 +58,13 @@ internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClien
                         val message = it.first
                         val correlationId = it.second.getOrDefault(XCorrelationId, UUID.randomUUID().toString())
                         val journalPostId = dokarkivClient.opprettJournalpost(it.first.value(),correlationId)
-                        kafkaProducer.send(message.asJournalPost(journalPostId).toProducerRecord(SØKNAD_TOPIC, it.second))
+                        kafkaProducer.send(message.medJournalId(journalPostId).toProducerRecord(SØKNAD_TOPIC, it.second))
                         messageProcessed()
                     }
             }
         }
     }
 }
-
-private fun NySøknadMedSkyggesak.asJournalPost(journalPostId: String) = NySøknadMedJournalId(sakId = sakId, aktørId = aktørId, søknadId = søknadId, søknad = søknad, fnr = fnr, gsakId = gsakId, journalId = journalPostId)
 
 private fun ConsumerRecord<String, String>.logMessage() {
     LOG.info("Polled message: topic:${this.topic()}, key:${this.key()}, value:${this.value()}: $XCorrelationId:${this.headersAsString()[XCorrelationId]}")
