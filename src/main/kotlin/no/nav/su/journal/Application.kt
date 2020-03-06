@@ -11,8 +11,12 @@ internal fun Application.sujournal() {
     val collectorRegistry = CollectorRegistry.defaultRegistry
     installMetrics(collectorRegistry)
     naisRoutes(collectorRegistry)
-    SøknadConsumer(environment.config, velgArkiv()).lesHendelser(this)
+    SøknadConsumer(env = environment.config, pdfClient = pdfClient(), dokarkivClient = velgArkiv()).lesHendelser(this)
 }
+
+@KtorExperimentalAPI
+private fun Application.pdfClient() =
+    PdfClient(baseUrl = fromEnvironment("dokarkiv.url"))
 
 @KtorExperimentalAPI
 private fun Application.velgArkiv(): DokArkiv = when {

@@ -2,29 +2,32 @@ package no.nav.su.journal
 
 import com.github.kittinunf.fuel.core.extensions.authentication
 import com.github.kittinunf.fuel.httpPost
+import com.github.kittinunf.fuel.json.responseJson
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpHeaders.Accept
+import io.ktor.http.HttpHeaders.XCorrelationId
 import no.nav.su.person.sts.StsConsumer
 import org.json.JSONObject
-import java.lang.RuntimeException
+
+val dokarkivPath = "/rest/journalpostapi/v1/journalpost"
 
 internal sealed class DokArkiv {
-    abstract fun opprettJournalpost(hendelse: String, corrrelationId: String): String
+    abstract fun opprettJournalpost(hendelse: String, pdf: ByteArray, correlationId: String): String
 }
 
-internal class DummyArkiv(): DokArkiv() {
-    override fun opprettJournalpost(hendelse: String, corrrelationId: String): String = ""
+internal class DummyArkiv: DokArkiv() {
+    override fun opprettJournalpost(hendelse: String, pdf: ByteArray, correlationId: String): String = ""
 }
 
 internal class DokarkivClient(
     private val baseUrl: String,
     private val stsConsumer: StsConsumer
 ): DokArkiv() {
-    override fun opprettJournalpost(hendelse: String, corrrelationId: String): String {
-        val (_, _, result) = "$baseUrl/rest/journalpostapi/v1/journalpost".httpPost()
+    override fun opprettJournalpost(hendelse: String, pdf: ByteArray, correlationId: String): String {
+        val (_, _, result) = "$baseUrl$dokarkivPath".httpPost()
             .authentication().bearer(stsConsumer.token())
-            .header(HttpHeaders.Accept, ContentType.Application.Json)
-            .header(HttpHeaders.XCorrelationId, corrrelationId)
+            .header(Accept, ContentType.Application.Json)
+            .header(XCorrelationId, correlationId)
             .body(
                 """
                     {
@@ -48,7 +51,7 @@ internal class DokarkivClient(
                             {
                               "filnavn": "eksempeldokument.pdf",
                               "filtype": "PDFA",
-                              "fysiskDokument": "AAAAAAAA",
+                              "fysiskDokument": "$pdf",
                               "variantformat": "ARKIV"
                             }
                           ],
@@ -76,10 +79,10 @@ internal class DokarkivClient(
                       "tittel": "Ettersendelse til søknad om foreldrepenger"
                     }
          """.trimIndent()
-            ).responseString()
+            ).responseJson()
 
         return result.fold(
-            { JSONObject(it).getString("journalpostId") },
+            { it.obj().getString("journalpostId") },
             { throw RuntimeException("Feil i kallet mot journal") }
         )
     }
