@@ -1,6 +1,5 @@
 package no.nav.su.journal
 
-import io.ktor.application.Application
 import io.ktor.config.ApplicationConfig
 import io.ktor.http.HttpHeaders.XCorrelationId
 import io.ktor.util.KtorExperimentalAPI
@@ -21,9 +20,9 @@ import org.apache.kafka.common.serialization.StringSerializer
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.temporal.ChronoUnit
-import java.util.*
 
-val LOG = LoggerFactory.getLogger(Application::class.java)
+@KtorExperimentalAPI
+private val LOG = LoggerFactory.getLogger(SøknadConsumer::class.java)
 
 @KtorExperimentalAPI
 internal class SøknadConsumer(
@@ -31,7 +30,6 @@ internal class SøknadConsumer(
     private val pdfClient: PdfClient,
     private val dokarkivClient: DokArkiv
 ) {
-    private val LOG = LoggerFactory.getLogger(SøknadConsumer::class.java)
     private val kafkaConfig = KafkaConfigBuilder(env)
     private val kafkaConsumer = KafkaConsumer(
         kafkaConfig.consumerConfig(),
@@ -56,23 +54,15 @@ internal class SøknadConsumer(
                         messageRead()
                     }
                     .filter { SøknadMelding.fromConsumerRecord(it) is NySøknadMedSkyggesak }
-                    .map { Pair(SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak, it.headersAsString()) }
-                    .forEach {
-                        val nySøknadMedSkyggesak = it.first
-                        val correlationId = it.second.getOrDefault(XCorrelationId, UUID.randomUUID().toString())
-                        val soknadPdf = pdfClient.genererPdf(
-                            nySøknadMedSkyggesak = nySøknadMedSkyggesak,
-                            correlationId = correlationId
-                        )
+                    .map { SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak }
+                    .forEach { nySøknadMedSkyggesak ->
+                        val soknadPdf = pdfClient.genererPdf(nySøknadMedSkyggesak = nySøknadMedSkyggesak)
                         val journalPostId = dokarkivClient.opprettJournalpost(
-                            hendelse = nySøknadMedSkyggesak.value(),
-                            pdf = soknadPdf,
-                            correlationId = correlationId
+                            nySøknadMedSkyggesak = nySøknadMedSkyggesak,
+                            pdf = soknadPdf
                         )
-                        kafkaProducer.send(
-                            nySøknadMedSkyggesak.medJournalId(journalId = journalPostId)
-                                .toProducerRecord(SØKNAD_TOPIC, it.second)
-                        )
+                        val søknadMedJournalId = nySøknadMedSkyggesak.medJournalId(journalId = journalPostId)
+                        kafkaProducer.send(søknadMedJournalId.toProducerRecord(SØKNAD_TOPIC))
                         messageProcessed()
                     }
             }
@@ -80,6 +70,7 @@ internal class SøknadConsumer(
     }
 }
 
+@KtorExperimentalAPI
 private fun ConsumerRecord<String, String>.logMessage() {
     LOG.info("Polled message: topic:${this.topic()}, key:${this.key()}, value:${this.value()}: $XCorrelationId:${this.headersAsString()[XCorrelationId]}")
 }

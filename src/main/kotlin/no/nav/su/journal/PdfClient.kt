@@ -9,10 +9,10 @@ import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
 val suPdfGenPath = "/api/v1/genpdf/supdfgen/soknad"
 
 internal class PdfClient(private val baseUrl: String) {
-    fun genererPdf(nySøknadMedSkyggesak: NySøknadMedSkyggesak, correlationId: String): ByteArray {
+    fun genererPdf(nySøknadMedSkyggesak: NySøknadMedSkyggesak): ByteArray {
         val (_, _, result) = "$baseUrl$suPdfGenPath".httpPost()
             .header(Accept, ContentType.Application.Json)
-            .header(XCorrelationId, correlationId)
+            .header(XCorrelationId, nySøknadMedSkyggesak.correlationId)
             .body(nySøknadMedSkyggesak.søknad).response()
 
         return result.fold(

@@ -3,7 +3,6 @@ package no.nav.su.journal
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
-import com.github.tomakehurst.wiremock.matching.AnythingPattern
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpHeaders.XCorrelationId
 import io.ktor.server.testing.withTestApplication
@@ -24,6 +23,7 @@ import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.*
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.fail
 
 @KtorExperimentalAPI
@@ -34,13 +34,14 @@ class JournalComponentTest {
         private val wireMockServer: WireMockServer = WireMockServer(WireMockConfiguration.options().dynamicPort())
         private val stsStub = StsStub()
 
+        val correlationId = "correlationId"
         val journalpostId = "12345678"
         val pdf = Base64.getEncoder().encodeToString("kunneVærtEnPDF".toByteArray())
 
         fun stubSuPdfGen() {
             stubFor(
                 post(urlPathEqualTo(suPdfGenPath))
-                    .withHeader(XCorrelationId, AnythingPattern())
+                    .withHeader(XCorrelationId, equalTo(correlationId))
                     .willReturn(
                         ok().withBody(pdf)
                     )
@@ -51,7 +52,7 @@ class JournalComponentTest {
             stubFor(
                 post(urlPathEqualTo(dokarkivPath))
                     .withHeader(HttpHeaders.Authorization, equalTo("Bearer $STS_TOKEN"))
-                    .withHeader(XCorrelationId, AnythingPattern())
+                    .withHeader(XCorrelationId, equalTo(correlationId))
                     .willReturn(
                         okJson(
                             """
@@ -112,20 +113,16 @@ class JournalComponentTest {
                 søknad = """{"key":"value"}""",
                 fnr = "12345678910",
                 aktørId = "1234567891011",
-                gsakId = "6"
+                gsakId = "6",
+                correlationId = correlationId
             )
-            kafkaProducer.send(nySøknadMedSkyggesak.toProducerRecord(SØKNAD_TOPIC))
+            kafkaProducer.send(nySøknadMedSkyggesak.toProducerRecord(SØKNAD_TOPIC)).get()
             Thread.sleep(2000)
             val consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(1L))
             val søknadMelding = SøknadMelding.fromConsumerRecord(consumerRecords.single { it.key() == sakId && it.value().contains("journalId") })
             when (søknadMelding){
                 is NySøknadMedJournalId -> { val søknadMedJournalId = søknadMelding
-                    assertEquals(nySøknadMedSkyggesak.sakId, søknadMedJournalId.sakId)
-                    assertEquals(nySøknadMedSkyggesak.søknadId, søknadMedJournalId.søknadId)
-                    assertEquals(nySøknadMedSkyggesak.søknad, søknadMedJournalId.søknad)
-                    assertEquals(nySøknadMedSkyggesak.fnr, søknadMedJournalId.fnr)
-                    assertEquals(nySøknadMedSkyggesak.aktørId, søknadMedJournalId.aktørId)
-                    assertEquals(nySøknadMedSkyggesak.gsakId, søknadMedJournalId.gsakId)
+                    assertTrue(søknadMedJournalId.følger(nySøknadMedSkyggesak))
                     assertEquals(journalpostId, søknadMedJournalId.journalId)
                 }
                 else -> fail("Fant ingen melding om journalført søknad på kafka")
@@ -152,10 +149,11 @@ class JournalComponentTest {
                     søknadId = "1",
                     søknad = """{"key":"value"}""",
                     fnr = "12345678910",
-                    aktørId = "1234567891011"
+                    aktørId = "1234567891011",
+                    correlationId = correlationId
                 )
                     .toProducerRecord(SØKNAD_TOPIC)
-            )
+            ).get()
             Thread.sleep(2000)
             wireMockServer.verify(0, postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
         }
@@ -187,7 +185,7 @@ class JournalComponentTest {
                               "variantformat": "ARKIV"
                             }
                           ],
-                          "tittel": "Søknad om foreldrepenger ved fødsel"
+                          "tittel": "Søknad om supplerende stønad uføre"
                         }
                       ],
                       "eksternReferanseId": "string",
@@ -208,7 +206,7 @@ class JournalComponentTest {
                           "verdi": "eksempel_verdi_123"
                         }
                       ],
-                      "tittel": "Ettersendelse til søknad om foreldrepenger"
+                      "tittel": "Førstegangssøknad om supplerende stønad uføre"
                     }
          """.trimIndent()
 
