@@ -52,13 +52,11 @@ internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClien
                         it.logMessage()
                         messageRead()
                     }
-                        .filter { SøknadMelding.fromConsumerRecord(it) is NySøknadMedSkyggesak }
-                    .map { Pair(SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak, it.headersAsString()) }
-                    .forEach {
-                        val message = it.first
-                        val correlationId = it.second.getOrDefault(XCorrelationId, UUID.randomUUID().toString())
-                        val journalPostId = dokarkivClient.opprettJournalpost(it.first.value(),correlationId)
-                        kafkaProducer.send(message.medJournalId(journalPostId).toProducerRecord(SØKNAD_TOPIC, it.second))
+                    .filter { SøknadMelding.fromConsumerRecord(it) is NySøknadMedSkyggesak }
+                    .map { SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak }
+                    .forEach { message ->
+                        val journalPostId = dokarkivClient.opprettJournalpost(message.value(), message.correlationId)
+                        kafkaProducer.send(message.medJournalId(journalPostId).toProducerRecord(SØKNAD_TOPIC, mapOf("X-Correlation-ID" to message.correlationId)))
                         messageProcessed()
                     }
             }

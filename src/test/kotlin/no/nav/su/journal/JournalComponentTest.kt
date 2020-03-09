@@ -86,7 +86,7 @@ class JournalComponentTest {
             val kafkaConfig = KafkaConfigBuilder(environment.config)
             val producer = KafkaProducer(kafkaConfig.producerConfig(), StringSerializer(), StringSerializer())
             producer.send(
-                NySøknadMedSkyggesak(sakId = "1", søknadId = "1", søknad = """{"key":"value"}""", fnr = "12345678910", aktørId = "1234567891011", gsakId = "6")
+                NySøknadMedSkyggesak(correlationId = "cora", sakId = "1", søknadId = "1", søknad = """{"key":"value"}""", fnr = "12345678910", aktørId = "1234567891011", gsakId = "6")
                     .toProducerRecord(SØKNAD_TOPIC))
             Thread.sleep(2000)
             wireMockServer.verify(1, WireMock.postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
@@ -102,7 +102,7 @@ class JournalComponentTest {
             val kafkaConfig = KafkaConfigBuilder(environment.config)
             val producer = KafkaProducer(kafkaConfig.producerConfig(), StringSerializer(), StringSerializer())
             producer.send(
-                NySøknad(sakId = "2", søknadId = "1", søknad = """{"key":"value"}""", fnr = "12345678910", aktørId = "1234567891011")
+                NySøknad(correlationId = "cora", sakId = "2", søknadId = "1", søknad = """{"key":"value"}""", fnr = "12345678910", aktørId = "1234567891011")
                     .toProducerRecord(SØKNAD_TOPIC))
             Thread.sleep(2000)
             wireMockServer.verify(0, WireMock.postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
