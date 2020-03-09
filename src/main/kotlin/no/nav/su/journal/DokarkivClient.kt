@@ -7,7 +7,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders.Accept
 import io.ktor.http.HttpHeaders.XCorrelationId
 import no.nav.su.person.sts.StsConsumer
-import org.json.JSONObject
 
 val dokarkivPath = "/rest/journalpostapi/v1/journalpost"
 
@@ -51,7 +50,7 @@ internal class DokarkivClient(
                             {
                               "filnavn": "eksempeldokument.pdf",
                               "filtype": "PDFA",
-                              "fysiskDokument": "$pdf",
+                              "fysiskDokument": "${String(pdf)}",
                               "variantformat": "ARKIV"
                             }
                           ],

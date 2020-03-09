@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.fail
 
@@ -34,7 +35,7 @@ class JournalComponentTest {
         private val stsStub = StsStub()
 
         val journalpostId = "12345678"
-        const val pdf = "[B@8ee5af"
+        val pdf = Base64.getEncoder().encodeToString("kunneVærtEnPDF".toByteArray())
 
         fun stubSuPdfGen() {
             stubFor(
