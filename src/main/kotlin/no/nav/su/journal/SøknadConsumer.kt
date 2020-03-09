@@ -11,6 +11,7 @@ import no.nav.su.journal.Metrics.messageProcessed
 import no.nav.su.journal.Metrics.messageRead
 import no.nav.su.meldinger.kafka.Topics.SØKNAD_TOPIC
 import no.nav.su.meldinger.kafka.headersAsString
+import no.nav.su.meldinger.kafka.soknad.NySøknadMedJournalId
 import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
 import no.nav.su.meldinger.kafka.soknad.SøknadMelding
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -26,11 +27,7 @@ import java.util.*
 val LOG = LoggerFactory.getLogger(Application::class.java)
 
 @KtorExperimentalAPI
-internal class SøknadConsumer(
-    env: ApplicationConfig,
-    private val pdfClient: PdfClient,
-    private val dokarkivClient: DokArkiv
-) {
+internal class SøknadConsumer(env: ApplicationConfig, private val dokarkivClient: DokArkiv) {
     private val LOG = LoggerFactory.getLogger(SøknadConsumer::class.java)
     private val kafkaConfig = KafkaConfigBuilder(env)
     private val kafkaConsumer = KafkaConsumer(
@@ -56,23 +53,10 @@ internal class SøknadConsumer(
                         messageRead()
                     }
                     .filter { SøknadMelding.fromConsumerRecord(it) is NySøknadMedSkyggesak }
-                    .map { Pair(SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak, it.headersAsString()) }
-                    .forEach {
-                        val nySøknadMedSkyggesak = it.first
-                        val correlationId = it.second.getOrDefault(XCorrelationId, UUID.randomUUID().toString())
-                        val soknadPdf = pdfClient.genererPdf(
-                            nySøknadMedSkyggesak = nySøknadMedSkyggesak,
-                            correlationId = correlationId
-                        )
-                        val journalPostId = dokarkivClient.opprettJournalpost(
-                            hendelse = nySøknadMedSkyggesak.value(),
-                            pdf = soknadPdf,
-                            correlationId = correlationId
-                        )
-                        kafkaProducer.send(
-                            nySøknadMedSkyggesak.medJournalId(journalId = journalPostId)
-                                .toProducerRecord(SØKNAD_TOPIC, it.second)
-                        )
+                    .map { SøknadMelding.fromConsumerRecord(it) as NySøknadMedSkyggesak }
+                    .forEach { message ->
+                        val journalPostId = dokarkivClient.opprettJournalpost(message.value(), message.correlationId)
+                        kafkaProducer.send(message.medJournalId(journalPostId).toProducerRecord(SØKNAD_TOPIC, mapOf("X-Correlation-ID" to message.correlationId)))
                         messageProcessed()
                     }
             }
