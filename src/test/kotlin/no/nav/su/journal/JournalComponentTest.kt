@@ -141,8 +141,7 @@ class JournalComponentTest {
             testEnv(wireMockServer)
             sujournal()
         }) {
-            val kafkaConfig = KafkaConfigBuilder(environment.config)
-            val producer = KafkaProducer(kafkaConfig.producerConfig(), StringSerializer(), StringSerializer())
+            val producer = environment.config.kafkaMiljø().producer()
             producer.send(
                 NySøknad(
                     sakId = "2",
