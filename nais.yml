@@ -9,12 +9,9 @@ spec:
   image: {{ image }}
   replicas:
     min: 1
-  webproxy: true
   prometheus:
     enabled: true
     path: /metrics
-  secureLogs:
-    enabled: true
   vault:
     enabled: true
     paths:
