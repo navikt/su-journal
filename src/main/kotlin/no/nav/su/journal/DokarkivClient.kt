@@ -6,6 +6,8 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders.Accept
 import io.ktor.http.HttpHeaders.XCorrelationId
 import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
+import no.nav.su.meldinger.kafka.soknad.Personopplysninger
+import no.nav.su.meldinger.kafka.soknad.SøknadInnhold
 import no.nav.su.person.sts.StsConsumer
 import org.json.JSONObject
 
@@ -15,75 +17,67 @@ internal sealed class DokArkiv {
     abstract fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String
 }
 
-internal class DummyArkiv: DokArkiv() {
+internal class DummyArkiv : DokArkiv() {
     override fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String = ""
 }
 
 internal class DokarkivClient(
-    private val baseUrl: String,
-    private val stsConsumer: StsConsumer
-): DokArkiv() {
+        private val baseUrl: String,
+        private val stsConsumer: StsConsumer
+) : DokArkiv() {
     override fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String {
+        val søknadInnhold = SøknadInnhold.fromJson(JSONObject(nySøknadMedSkyggesak.søknad))
         val (_, _, result) = "$baseUrl$dokarkivPath".httpPost()
-            .authentication().bearer(stsConsumer.token())
-            .header(Accept, ContentType.Application.Json)
-            .header(XCorrelationId, nySøknadMedSkyggesak.correlationId)
-            .body(
-                """
+                .authentication().bearer(stsConsumer.token())
+                .header(Accept, ContentType.Application.Json)
+                .header(XCorrelationId, nySøknadMedSkyggesak.correlationId)
+                .body("""
                     {
+                      "tittel": "Søknad om supplerende stønad for uføre flyktninger",
+                      "journalpostType": "INNGAAENDE",
+                      "tema": "SUP",
+                      "behandlingstema": "ab0268",
+                      "journalfoerendeEnhet": "9999",
                       "avsenderMottaker": {
-                        "id": 999263550,
-                        "idType": "ORGNR",
-                        "land": "Norge",
-                        "navn": "NAV"
+                        "id": "${nySøknadMedSkyggesak.fnr}",
+                        "idType": "FNR",
+                        "navn": "${søkersNavn(søknadInnhold.personopplysninger)}"
                       },
-                      "behandlingstema": "ab0001",
                       "bruker": {
-                        "id": 12345678910,
+                        "id": "${nySøknadMedSkyggesak.fnr}",
                         "idType": "FNR"
                       },
-                      "datoMottatt": "2019-11-29",
+                      "sak": {
+                        "fagsakId": "${nySøknadMedSkyggesak.sakId}",
+                        "fagsaksystem": "SUPSTONAD",
+                        "sakstype": "FAGSAK"
+                      },
                       "dokumenter": [
                         {
-                          "brevkode": "NAV 14-05.09",
-                          "dokumentKategori": "SOK",
+                          "tittel": "Søknad om supplerende stønad for uføre flyktninger",
                           "dokumentvarianter": [
                             {
-                              "filnavn": "eksempeldokument.pdf",
                               "filtype": "PDFA",
                               "fysiskDokument": "${String(pdf)}",
                               "variantformat": "ARKIV"
+                            },
+                            {
+                              "filtype": "JSON",
+                              "fysiskDokument": ${nySøknadMedSkyggesak.søknad},
+                              "variantformat": "ORIGINAL"
                             }
-                          ],
-                          "tittel": "Søknad om supplerende stønad uføre"
+                          ]
                         }
-                      ],
-                      "eksternReferanseId": "string",
-                      "journalfoerendeEnhet": 9999,
-                      "journalpostType": "INNGAAENDE",
-                      "kanal": "NAV_NO",
-                      "sak": {
-                        "arkivsaksnummer": 111111111,
-                        "arkivsaksystem": "GSAK",
-                        "fagsakId": 111111111,
-                        "fagsaksystem": "FS38",
-                        "sakstype": "FAGSAK"
-                      },
-                      "tema": "FOR",
-                      "tilleggsopplysninger": [
-                        {
-                          "nokkel": "bucid",
-                          "verdi": "eksempel_verdi_123"
-                        }
-                      ],
-                      "tittel": "Førstegangssøknad om supplerende stønad uføre"
+                      ]
                     }
-         """.trimIndent()
-            ).responseString()
+                """.trimIndent()
+                ).responseString()
 
         return result.fold(
-            { JSONObject(it).getString("journalpostId") },
-            { throw RuntimeException("Feil i kallet mot journal") }
+                { JSONObject(it).getString("journalpostId") },
+                { throw RuntimeException("Feil i kallet mot journal") }
         )
     }
+
+    private fun søkersNavn(personopplysninger: Personopplysninger): String = """${personopplysninger.etternavn}, ${personopplysninger.fornavn} ${personopplysninger.mellomnavn ?: ""}"""
 }

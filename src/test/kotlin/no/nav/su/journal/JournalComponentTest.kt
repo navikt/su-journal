@@ -10,12 +10,8 @@ import io.ktor.util.KtorExperimentalAPI
 import no.nav.su.journal.EmbeddedKafka.Companion.kafkaConsumer
 import no.nav.su.journal.EmbeddedKafka.Companion.kafkaProducer
 import no.nav.su.meldinger.kafka.Topics.SØKNAD_TOPIC
-import no.nav.su.meldinger.kafka.soknad.NySøknad
-import no.nav.su.meldinger.kafka.soknad.NySøknadMedJournalId
-import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
-import no.nav.su.meldinger.kafka.soknad.SøknadMelding
-import org.apache.kafka.clients.producer.KafkaProducer
-import org.apache.kafka.common.serialization.StringSerializer
+import no.nav.su.meldinger.kafka.soknad.*
+import org.json.JSONObject
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -23,7 +19,6 @@ import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.*
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 @KtorExperimentalAPI
@@ -36,43 +31,34 @@ class JournalComponentTest {
 
         val correlationId = "correlationId"
         val journalpostId = "12345678"
-        val pdf = Base64.getEncoder().encodeToString("kunneVærtEnPDF".toByteArray())
+        val søknadInnhold = SøknadInnholdTestdataBuilder.build()
+        val søknadInnholdPdf = Base64.getEncoder().encodeToString(søknadInnhold.toJson().toByteArray())
+        val aktorId = "9876543210"
+        val sakId = "1"
+
 
         fun stubSuPdfGen() {
-            stubFor(
-                post(urlPathEqualTo(suPdfGenPath))
+            stubFor(post(urlPathEqualTo(suPdfGenPath))
                     .withHeader(XCorrelationId, equalTo(correlationId))
-                    .willReturn(
-                        ok().withBody(pdf)
-                    )
-            )
+                    .willReturn(ok().withBody(søknadInnholdPdf)))
         }
 
         fun stubJournalpost() {
-            stubFor(
-                post(urlPathEqualTo(dokarkivPath))
+            stubFor(post(urlPathEqualTo(dokarkivPath))
                     .withHeader(HttpHeaders.Authorization, equalTo("Bearer $STS_TOKEN"))
                     .withHeader(XCorrelationId, equalTo(correlationId))
-                    .willReturn(
-                        okJson(
-                            """
+                    .willReturn(okJson("""
+                        {
+                          "journalpostId": "$journalpostId",
+                          "journalpostferdigstilt": true,
+                          "dokumenter": [
                             {
-                              "dokumenter": [
-                                {
-                                  "brevkode": "NAV 14-05.09",
-                                  "dokumentInfoId": 123,
-                                  "tittel": "Søknad om foreldrepenger ved fødsel"
-                                }
-                              ],
-                              "journalpostId": "$journalpostId",
-                              "journalpostferdigstilt": true,
-                              "journalstatus": "ENDELIG",
-                              "melding": "null"
+                              "dokumentInfoId": "485227498",
+                              "tittel": "Søknad om supplerende stønad for uføre flyktninger"
                             }
-                        """.trimIndent()
-                        )
-                    )
-            )
+                          ]
+                        }
+                    """.trimIndent())))
         }
 
         @BeforeAll
@@ -106,32 +92,30 @@ class JournalComponentTest {
             sujournal()
         }) {
             stubSuPdfGen()
-            val sakId = "1"
             val nySøknadMedSkyggesak = NySøknadMedSkyggesak(
-                sakId = sakId,
-                søknadId = "2",
-                søknad = """{"key":"value"}""",
-                fnr = "12345678910",
-                aktørId = "1234567891011",
-                gsakId = "6",
-                correlationId = correlationId
+                    sakId = sakId,
+                    søknadId = "1",
+                    søknad = søknadInnhold.toJson(),
+                    fnr = søknadInnhold.personopplysninger.fnr,
+                    aktørId = aktorId,
+                    gsakId = "6",
+                    correlationId = correlationId
             )
             kafkaProducer.send(nySøknadMedSkyggesak.toProducerRecord(SØKNAD_TOPIC)).get()
             Thread.sleep(2000)
             val consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(1L))
             val søknadMelding = SøknadMelding.fromConsumerRecord(consumerRecords.single { it.key() == sakId && it.value().contains("journalId") })
-            when (søknadMelding){
-                is NySøknadMedJournalId -> { val søknadMedJournalId = søknadMelding
-                    assertTrue(søknadMedJournalId.følger(nySøknadMedSkyggesak))
+            when (søknadMelding) {
+                is NySøknadMedJournalId -> {
+                    val søknadMedJournalId = søknadMelding
                     assertEquals(journalpostId, søknadMedJournalId.journalId)
                 }
                 else -> fail("Fant ingen melding om journalført søknad på kafka")
             }
             wireMockServer.verify(1, postRequestedFor(urlEqualTo(suPdfGenPath)))
-            wireMockServer.verify(1,
-                postRequestedFor(urlEqualTo(dokarkivPath))
-                .withRequestBody(equalToJson(forventetJoarkRequestBody))
-            )
+            wireMockServer.verify(1, postRequestedFor(urlEqualTo(dokarkivPath)))
+            val requestBody = String(wireMockServer.allServeEvents.first { it.request.url == dokarkivPath }.request.body)
+            assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetJoarkRequestBody).toString())
         }
     }
 
@@ -143,15 +127,15 @@ class JournalComponentTest {
         }) {
             val producer = environment.config.kafkaMiljø().producer()
             producer.send(
-                NySøknad(
-                    sakId = "2",
-                    søknadId = "1",
-                    søknad = """{"key":"value"}""",
-                    fnr = "12345678910",
-                    aktørId = "1234567891011",
-                    correlationId = correlationId
-                )
-                    .toProducerRecord(SØKNAD_TOPIC)
+                    NySøknad(
+                            sakId = "2",
+                            søknadId = "1",
+                            søknad = """{"key":"value"}""",
+                            fnr = "12345678910",
+                            aktørId = "12345678910",
+                            correlationId = "correlationId"
+                    )
+                            .toProducerRecord(SØKNAD_TOPIC)
             ).get()
             Thread.sleep(2000)
             wireMockServer.verify(0, postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
@@ -159,54 +143,44 @@ class JournalComponentTest {
     }
 
     val forventetJoarkRequestBody = """
-                    {
-                      "avsenderMottaker": {
-                        "id": 999263550,
-                        "idType": "ORGNR",
-                        "land": "Norge",
-                        "navn": "NAV"
-                      },
-                      "behandlingstema": "ab0001",
-                      "bruker": {
-                        "id": 12345678910,
-                        "idType": "FNR"
-                      },
-                      "datoMottatt": "2019-11-29",
-                      "dokumenter": [
-                        {
-                          "brevkode": "NAV 14-05.09",
-                          "dokumentKategori": "SOK",
-                          "dokumentvarianter": [
-                            {
-                              "filnavn": "eksempeldokument.pdf",
-                              "filtype": "PDFA",
-                              "fysiskDokument": "$pdf",
-                              "variantformat": "ARKIV"
-                            }
-                          ],
-                          "tittel": "Søknad om supplerende stønad uføre"
-                        }
-                      ],
-                      "eksternReferanseId": "string",
-                      "journalfoerendeEnhet": 9999,
-                      "journalpostType": "INNGAAENDE",
-                      "kanal": "NAV_NO",
-                      "sak": {
-                        "arkivsaksnummer": 111111111,
-                        "arkivsaksystem": "GSAK",
-                        "fagsakId": 111111111,
-                        "fagsaksystem": "FS38",
-                        "sakstype": "FAGSAK"
-                      },
-                      "tema": "FOR",
-                      "tilleggsopplysninger": [
-                        {
-                          "nokkel": "bucid",
-                          "verdi": "eksempel_verdi_123"
-                        }
-                      ],
-                      "tittel": "Førstegangssøknad om supplerende stønad uføre"
-                    }
-         """.trimIndent()
+        {
+          "tittel": "Søknad om supplerende stønad for uføre flyktninger",
+          "journalpostType": "INNGAAENDE",
+          "tema": "SUP",
+          "behandlingstema": "ab0268",
+          "journalfoerendeEnhet": "9999",
+          "avsenderMottaker": {
+            "id": "${søknadInnhold.personopplysninger.fnr}",
+            "idType": "FNR",
+            "navn": "Nordmann, Ola Erik"
+          },
+          "bruker": {
+            "id": "${søknadInnhold.personopplysninger.fnr}",
+            "idType": "FNR"
+          },
+          "sak": {
+            "fagsakId": "$sakId",
+            "fagsaksystem": "SUPSTONAD",
+            "sakstype": "FAGSAK"
+          },
+          "dokumenter": [
+            {
+              "tittel": "Søknad om supplerende stønad for uføre flyktninger",
+              "dokumentvarianter": [
+                {
+                  "filtype": "PDFA",
+                  "fysiskDokument": "$søknadInnholdPdf",
+                  "variantformat": "ARKIV"
+                },
+                {
+                  "filtype": "JSON",
+                  "fysiskDokument": ${søknadInnhold.toJson()},
+                  "variantformat": "ORIGINAL"
+                }
+              ]
+            }
+          ]
+        }
+    """.trimIndent()
 
 }
