@@ -32,7 +32,7 @@ class JournalComponentTest {
         val correlationId = "correlationId"
         val journalpostId = "12345678"
         val søknadInnhold = SøknadInnholdTestdataBuilder.build()
-        val søknadInnholdPdf = Base64.getEncoder().encodeToString(søknadInnhold.toJson().toByteArray())
+        val søknadInnholdPdf = søknadInnhold.toJson().toByteArray()
         val aktorId = "9876543210"
         val sakId = "1"
 
@@ -110,7 +110,10 @@ class JournalComponentTest {
             wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(suPdfGenPath)))
             wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(dokarkivPath)))
             val requestBody = String(wireMockServer.allServeEvents.first { it.request.url.contains(dokarkivPath) }.request.body)
-            assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetJoarkRequestBody).toString())
+            val nySøknadMedSkyggesakKafka = SøknadMelding.fromConsumerRecord(consumerRecords
+                    .single { it.key() == sakId && !it.value().contains("journalId") }
+            ) as NySøknadMedSkyggesak //Krumspring for equality sjekk. Tekst som har vært ser/deser noen ganger er ikke nødvendigvis helt lik original input.
+            assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetRequest(nySøknadMedSkyggesakKafka, søknadInnholdPdf)).toString())
         }
     }
 
@@ -137,11 +140,12 @@ class JournalComponentTest {
         }
     }
 
-    val forventetJoarkRequestBody = """
+    fun forventetRequest(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray) = """
         {
           "tittel": "Søknad om supplerende stønad for uføre flyktninger",
           "journalpostType": "INNGAAENDE",
           "tema": "SUP",
+          "kanal": "NAV_NO",
           "behandlingstema": "ab0268",
           "journalfoerendeEnhet": "9999",
           "avsenderMottaker": {
@@ -164,12 +168,12 @@ class JournalComponentTest {
               "dokumentvarianter": [
                 {
                   "filtype": "PDFA",
-                  "fysiskDokument": "$søknadInnholdPdf",
+                  "fysiskDokument": "${Base64.getEncoder().encodeToString(pdf)}",
                   "variantformat": "ARKIV"
                 },
                 {
                   "filtype": "JSON",
-                  "fysiskDokument": ${søknadInnhold.toJson()},
+                  "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknadMedSkyggesak.søknad.toByteArray())}",
                   "variantformat": "ORIGINAL"
                 }
               ]
@@ -177,5 +181,4 @@ class JournalComponentTest {
           ]
         }
     """.trimIndent()
-
 }

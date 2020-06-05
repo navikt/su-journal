@@ -9,6 +9,7 @@ import no.nav.su.meldinger.kafka.soknad.Personopplysninger
 import no.nav.su.meldinger.kafka.soknad.SøknadInnhold
 import no.nav.su.person.sts.StsConsumer
 import org.json.JSONObject
+import java.util.*
 
 val dokarkivPath = "/rest/journalpostapi/v1/journalpost"
 
@@ -36,6 +37,7 @@ internal class DokarkivClient(
                       "tittel": "Søknad om supplerende stønad for uføre flyktninger",
                       "journalpostType": "INNGAAENDE",
                       "tema": "SUP",
+                      "kanal": "NAV_NO",
                       "behandlingstema": "ab0268",
                       "journalfoerendeEnhet": "9999",
                       "avsenderMottaker": {
@@ -58,12 +60,12 @@ internal class DokarkivClient(
                           "dokumentvarianter": [
                             {
                               "filtype": "PDFA",
-                              "fysiskDokument": "${String(pdf)}",
+                              "fysiskDokument": "${Base64.getEncoder().encodeToString(pdf)}",
                               "variantformat": "ARKIV"
                             },
                             {
                               "filtype": "JSON",
-                              "fysiskDokument": ${nySøknadMedSkyggesak.søknad},
+                              "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknadMedSkyggesak.søknad.toByteArray())}",
                               "variantformat": "ORIGINAL"
                             }
                           ]
