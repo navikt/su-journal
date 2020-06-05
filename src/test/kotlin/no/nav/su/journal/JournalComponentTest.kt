@@ -3,8 +3,8 @@ package no.nav.su.journal
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.*
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpHeaders.XCorrelationId
 import io.ktor.server.testing.withTestApplication
 import io.ktor.util.KtorExperimentalAPI
 import no.nav.su.journal.EmbeddedKafka.Companion.kafkaConsumer
@@ -37,17 +37,17 @@ class JournalComponentTest {
         val sakId = "1"
 
 
-        fun stubSuPdfGen() {
-            stubFor(post(urlPathEqualTo(suPdfGenPath))
-                    .withHeader(XCorrelationId, equalTo(correlationId))
-                    .willReturn(ok().withBody(søknadInnholdPdf)))
-        }
+        fun stubSuPdfGen() = post(urlPathEqualTo(suPdfGenPath))
+                .withHeader(HttpHeaders.XCorrelationId, equalTo(correlationId))
+                .willReturn(ok().withBody(søknadInnholdPdf))
 
-        fun stubJournalpost() {
-            stubFor(post(urlPathEqualTo(dokarkivPath))
-                    .withHeader(HttpHeaders.Authorization, equalTo("Bearer $STS_TOKEN"))
-                    .withHeader(XCorrelationId, equalTo(correlationId))
-                    .willReturn(okJson("""
+        fun stubJournalpost() = post(urlPathEqualTo(dokarkivPath))
+                .withQueryParam("forsoekFerdigstill", equalTo("true"))
+                .withHeader(HttpHeaders.Authorization, equalTo("Bearer $STS_TOKEN"))
+                .withHeader(HttpHeaders.ContentType, equalTo(ContentType.Application.Json.toString()))
+                .withHeader(HttpHeaders.Accept, equalTo(ContentType.Application.Json.toString()))
+                .withHeader(HttpHeaders.XCorrelationId, equalTo(correlationId))
+                .willReturn(okJson("""
                         {
                           "journalpostId": "$journalpostId",
                           "journalpostferdigstilt": true,
@@ -58,19 +58,12 @@ class JournalComponentTest {
                             }
                           ]
                         }
-                    """.trimIndent())))
-        }
+                    """.trimIndent()))
 
         @BeforeAll
         @JvmStatic
         fun start() {
-            wireMockServer.apply {
-                start()
-                val client = create().port(wireMockServer.port()).build()
-                configureFor(client)
-            }
-            stubFor(stsStub.stubbedSTS())
-            stubJournalpost()
+            wireMockServer.start()
         }
 
         @AfterAll
@@ -83,6 +76,9 @@ class JournalComponentTest {
     @BeforeEach
     fun resetWiremock() {
         wireMockServer.resetRequests()
+        wireMockServer.stubFor(stsStub.stubbedSTS())
+        wireMockServer.stubFor(stubSuPdfGen())
+        wireMockServer.stubFor(stubJournalpost())
     }
 
     @Test
@@ -91,7 +87,6 @@ class JournalComponentTest {
             testEnv(wireMockServer)
             sujournal()
         }) {
-            stubSuPdfGen()
             val nySøknadMedSkyggesak = NySøknadMedSkyggesak(
                     sakId = sakId,
                     søknadId = "1",
@@ -112,9 +107,9 @@ class JournalComponentTest {
                 }
                 else -> fail("Fant ingen melding om journalført søknad på kafka")
             }
-            wireMockServer.verify(1, postRequestedFor(urlEqualTo(suPdfGenPath)))
-            wireMockServer.verify(1, postRequestedFor(urlEqualTo(dokarkivPath)))
-            val requestBody = String(wireMockServer.allServeEvents.first { it.request.url == dokarkivPath }.request.body)
+            wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(suPdfGenPath)))
+            wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(dokarkivPath)))
+            val requestBody = String(wireMockServer.allServeEvents.first { it.request.url.contains(dokarkivPath) }.request.body)
             assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetJoarkRequestBody).toString())
         }
     }
@@ -138,7 +133,7 @@ class JournalComponentTest {
                             .toProducerRecord(SØKNAD_TOPIC)
             ).get()
             Thread.sleep(2000)
-            wireMockServer.verify(0, postRequestedFor(urlEqualTo("/rest/journalpostapi/v1/journalpost")))
+            wireMockServer.verify(0, postRequestedFor(urlPathEqualTo(dokarkivPath)))
         }
     }
 

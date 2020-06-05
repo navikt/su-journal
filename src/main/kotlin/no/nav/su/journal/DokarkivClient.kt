@@ -3,8 +3,7 @@ package no.nav.su.journal
 import com.github.kittinunf.fuel.core.extensions.authentication
 import com.github.kittinunf.fuel.httpPost
 import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders.Accept
-import io.ktor.http.HttpHeaders.XCorrelationId
+import io.ktor.http.HttpHeaders
 import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
 import no.nav.su.meldinger.kafka.soknad.Personopplysninger
 import no.nav.su.meldinger.kafka.soknad.SøknadInnhold
@@ -27,10 +26,11 @@ internal class DokarkivClient(
 ) : DokArkiv() {
     override fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String {
         val søknadInnhold = SøknadInnhold.fromJson(JSONObject(nySøknadMedSkyggesak.søknad))
-        val (_, _, result) = "$baseUrl$dokarkivPath".httpPost()
+        val (_, _, result) = "$baseUrl$dokarkivPath".httpPost(listOf("forsoekFerdigstill" to "true"))
                 .authentication().bearer(stsConsumer.token())
-                .header(Accept, ContentType.Application.Json)
-                .header(XCorrelationId, nySøknadMedSkyggesak.correlationId)
+                .header(HttpHeaders.ContentType, ContentType.Application.Json)
+                .header(HttpHeaders.Accept, ContentType.Application.Json)
+                .header(HttpHeaders.XCorrelationId, nySøknadMedSkyggesak.correlationId)
                 .body("""
                     {
                       "tittel": "Søknad om supplerende stønad for uføre flyktninger",
@@ -74,8 +74,15 @@ internal class DokarkivClient(
                 ).responseString()
 
         return result.fold(
-                { JSONObject(it).getString("journalpostId") },
-                { throw RuntimeException("Feil i kallet mot journal") }
+                { json ->
+                    JSONObject(json).let {
+                        when (it.getBoolean("journalpostferdigstilt")) {
+                            true -> it.getString("journalpostId")
+                            else -> throw RuntimeException("Kunne ikke ferdigstille journalføring")
+                        }
+                    }
+                },
+                { throw RuntimeException("Feil ved journalføring av søknad ${it}") }
         )
     }
 
