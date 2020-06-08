@@ -10,7 +10,10 @@ import io.ktor.util.KtorExperimentalAPI
 import no.nav.su.journal.EmbeddedKafka.Companion.kafkaConsumer
 import no.nav.su.journal.EmbeddedKafka.Companion.kafkaProducer
 import no.nav.su.meldinger.kafka.Topics.SØKNAD_TOPIC
-import no.nav.su.meldinger.kafka.soknad.*
+import no.nav.su.meldinger.kafka.soknad.NySøknad
+import no.nav.su.meldinger.kafka.soknad.NySøknadMedJournalId
+import no.nav.su.meldinger.kafka.soknad.SøknadInnholdTestdataBuilder
+import no.nav.su.meldinger.kafka.soknad.SøknadMelding
 import org.json.JSONObject
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
@@ -87,16 +90,15 @@ class JournalComponentTest {
             testEnv(wireMockServer)
             sujournal()
         }) {
-            val nySøknadMedSkyggesak = NySøknadMedSkyggesak(
+            val nySøknad = NySøknad(
                     sakId = sakId,
                     søknadId = "1",
                     søknad = søknadInnhold.toJson(),
                     fnr = søknadInnhold.personopplysninger.fnr,
                     aktørId = aktorId,
-                    gsakId = "6",
                     correlationId = correlationId
             )
-            kafkaProducer.send(nySøknadMedSkyggesak.toProducerRecord(SØKNAD_TOPIC)).get()
+            kafkaProducer.send(nySøknad.toProducerRecord(SØKNAD_TOPIC)).get()
             Thread.sleep(2000)
             val consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(1L))
             val søknadMelding = SøknadMelding.fromConsumerRecord(consumerRecords.single { it.key() == sakId && it.value().contains("journalId") })
@@ -110,10 +112,10 @@ class JournalComponentTest {
             wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(suPdfGenPath)))
             wireMockServer.verify(1, postRequestedFor(urlPathEqualTo(dokarkivPath)))
             val requestBody = String(wireMockServer.allServeEvents.first { it.request.url.contains(dokarkivPath) }.request.body)
-            val nySøknadMedSkyggesakKafka = SøknadMelding.fromConsumerRecord(consumerRecords
+            val nySøknadKafka = SøknadMelding.fromConsumerRecord(consumerRecords
                     .single { it.key() == sakId && !it.value().contains("journalId") }
-            ) as NySøknadMedSkyggesak //Krumspring for equality sjekk. Tekst som har vært ser/deser noen ganger er ikke nødvendigvis helt lik original input.
-            assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetRequest(nySøknadMedSkyggesakKafka, søknadInnholdPdf)).toString())
+            ) as NySøknad //Krumspring for equality sjekk. Tekst som har vært ser/deser noen ganger er ikke nødvendigvis helt lik original input.
+            assertEquals(JSONObject(requestBody).toString(), JSONObject(forventetRequest(nySøknadKafka, søknadInnholdPdf)).toString())
         }
     }
 
@@ -140,7 +142,7 @@ class JournalComponentTest {
         }
     }
 
-    fun forventetRequest(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray) = """
+    fun forventetRequest(nySøknad: NySøknad, pdf: ByteArray) = """
         {
           "tittel": "Søknad om supplerende stønad for uføre flyktninger",
           "journalpostType": "INNGAAENDE",
@@ -173,7 +175,7 @@ class JournalComponentTest {
                 },
                 {
                   "filtype": "JSON",
-                  "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknadMedSkyggesak.søknad.toByteArray())}",
+                  "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknad.søknad.toByteArray())}",
                   "variantformat": "ORIGINAL"
                 }
               ]

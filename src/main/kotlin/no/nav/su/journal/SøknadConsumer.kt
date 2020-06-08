@@ -6,7 +6,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.nav.su.meldinger.kafka.Topics.SØKNAD_TOPIC
-import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
+import no.nav.su.meldinger.kafka.soknad.NySøknad
 
 @KtorExperimentalAPI
 internal class SøknadConsumer(
@@ -19,13 +19,13 @@ internal class SøknadConsumer(
     fun lesHendelser(scope: CoroutineScope) {
         scope.launch {
             while (isActive) {
-                meldingsleser.lesMelding<NySøknadMedSkyggesak> { nySøknadMedSkyggesak ->
-                    val soknadPdf = pdfClient.genererPdf(nySøknadMedSkyggesak = nySøknadMedSkyggesak)
+                meldingsleser.lesMelding<NySøknad> {
+                    val soknadPdf = pdfClient.genererPdf(nySøknad = it)
                     val journalPostId = dokarkivClient.opprettJournalpost(
-                        nySøknadMedSkyggesak = nySøknadMedSkyggesak,
+                        nySøknad = it,
                         pdf = soknadPdf
                     )
-                    val søknadMedJournalId = nySøknadMedSkyggesak.medJournalId(journalId = journalPostId)
+                    val søknadMedJournalId = it.medJournalId(journalId = journalPostId)
                     kafkaProducer.send(søknadMedJournalId.toProducerRecord(SØKNAD_TOPIC))
                 }
             }

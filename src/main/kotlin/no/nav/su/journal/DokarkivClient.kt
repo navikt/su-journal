@@ -4,7 +4,7 @@ import com.github.kittinunf.fuel.core.extensions.authentication
 import com.github.kittinunf.fuel.httpPost
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
-import no.nav.su.meldinger.kafka.soknad.NySøknadMedSkyggesak
+import no.nav.su.meldinger.kafka.soknad.NySøknad
 import no.nav.su.meldinger.kafka.soknad.Personopplysninger
 import no.nav.su.meldinger.kafka.soknad.SøknadInnhold
 import no.nav.su.person.sts.StsConsumer
@@ -14,24 +14,24 @@ import java.util.*
 val dokarkivPath = "/rest/journalpostapi/v1/journalpost"
 
 internal sealed class DokArkiv {
-    abstract fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String
+    abstract fun opprettJournalpost(nySøknad: NySøknad, pdf: ByteArray): String
 }
 
 internal class DummyArkiv : DokArkiv() {
-    override fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String = ""
+    override fun opprettJournalpost(nySøknad: NySøknad, pdf: ByteArray): String = ""
 }
 
 internal class DokarkivClient(
         private val baseUrl: String,
         private val stsConsumer: StsConsumer
 ) : DokArkiv() {
-    override fun opprettJournalpost(nySøknadMedSkyggesak: NySøknadMedSkyggesak, pdf: ByteArray): String {
-        val søknadInnhold = SøknadInnhold.fromJson(JSONObject(nySøknadMedSkyggesak.søknad))
+    override fun opprettJournalpost(nySøknad: NySøknad, pdf: ByteArray): String {
+        val søknadInnhold = SøknadInnhold.fromJson(JSONObject(nySøknad.søknad))
         val (_, _, result) = "$baseUrl$dokarkivPath".httpPost(listOf("forsoekFerdigstill" to "true"))
                 .authentication().bearer(stsConsumer.token())
                 .header(HttpHeaders.ContentType, ContentType.Application.Json)
                 .header(HttpHeaders.Accept, ContentType.Application.Json)
-                .header(HttpHeaders.XCorrelationId, nySøknadMedSkyggesak.correlationId)
+                .header(HttpHeaders.XCorrelationId, nySøknad.correlationId)
                 .body("""
                     {
                       "tittel": "Søknad om supplerende stønad for uføre flyktninger",
@@ -41,16 +41,16 @@ internal class DokarkivClient(
                       "behandlingstema": "ab0268",
                       "journalfoerendeEnhet": "9999",
                       "avsenderMottaker": {
-                        "id": "${nySøknadMedSkyggesak.fnr}",
+                        "id": "${nySøknad.fnr}",
                         "idType": "FNR",
                         "navn": "${søkersNavn(søknadInnhold.personopplysninger)}"
                       },
                       "bruker": {
-                        "id": "${nySøknadMedSkyggesak.fnr}",
+                        "id": "${nySøknad.fnr}",
                         "idType": "FNR"
                       },
                       "sak": {
-                        "fagsakId": "${nySøknadMedSkyggesak.sakId}",
+                        "fagsakId": "${nySøknad.sakId}",
                         "fagsaksystem": "SUPSTONAD",
                         "sakstype": "FAGSAK"
                       },
@@ -65,7 +65,7 @@ internal class DokarkivClient(
                             },
                             {
                               "filtype": "JSON",
-                              "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknadMedSkyggesak.søknad.toByteArray())}",
+                              "fysiskDokument": "${Base64.getEncoder().encodeToString(nySøknad.søknad.toByteArray())}",
                               "variantformat": "ORIGINAL"
                             }
                           ]
